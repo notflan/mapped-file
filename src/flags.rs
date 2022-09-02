@@ -89,7 +89,7 @@ pub enum Flush
 impl Flush
 {
 #[inline(always)]
-    const fn get_ms(self) -> c_int
+    pub(super) const fn get_ms(self) -> c_int
     {
         use libc::{
             MS_SYNC, MS_ASYNC,
@@ -116,7 +116,7 @@ pub enum Advice {
 impl Advice
 {
 #[inline(always)]
-    const fn get_madv(self) -> c_int
+    pub(crate) const fn get_madv(self) -> c_int
     {
         use libc::{
             MADV_NORMAL,
