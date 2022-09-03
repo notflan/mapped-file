@@ -14,7 +14,7 @@ use std::{
     },
     io,
     fmt, error,
-
+    
     borrow::{
 	Borrow, BorrowMut,
     }
@@ -30,6 +30,10 @@ use uniq::UniqueSlice;
 
 mod flags;
 pub use flags::*;
+
+pub mod err;
+use err::os_error;
+
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -283,7 +287,7 @@ impl<T> MappedFile<T> {
     }
 }
 
-/// Contains an OS error and a value.
+/// Error returned when mapping operation fails
 pub struct TryNewError<T: ?Sized>
 {
     error: Box<io::Error>,

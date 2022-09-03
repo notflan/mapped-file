@@ -75,7 +75,7 @@ pub(crate) use c_try;
 /// Error context for a failed C call.
 /// Returns the invalid return value, the `errno` error, and a message.
 #[derive(Debug)]
-pub(crate) struct FFIError<'a, T>(T, io::Error, fmt::Arguments<'a>);
+pub struct FFIError<'a, T>(T, io::Error, fmt::Arguments<'a>);
 
 impl<'a, T> FFIError<'a, T>
 where FFIError<'a, T>: error::Error
