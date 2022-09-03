@@ -20,6 +20,11 @@ use std::{
     }
 };
 
+mod ffi;
+use ffi::c_try;
+
+pub mod file;
+
 mod uniq;
 use uniq::UniqueSlice;
 
@@ -434,3 +439,5 @@ impl<T> ops::DerefMut for MappedFile<T>
         self.as_slice_mut()
     }
 }
+//TODO: Continue copying from `utf8encode` at the //TODO (cont.) line
+
