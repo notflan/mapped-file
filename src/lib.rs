@@ -23,7 +23,13 @@ use std::{
 mod ffi;
 use ffi::c_try;
 
+pub mod hugetlb;
 pub mod file;
+
+use hugetlb::{
+    HugePage,
+    MapHugeFlag,
+};
 
 mod uniq;
 use uniq::UniqueSlice;
@@ -58,10 +64,10 @@ pub struct MappedFile<T>
     map: MappedSlice,
 }
 
-//TODO: continue copying from the `TODO` line in `utf8encode/src/mmap.rs`
 impl<T: AsRawFd> MappedFile<T> {
-    /// Map the file `file` to `len` bytes with memory protection as provided by `perm`, and
-    /// mapping flags provided by `flags`.
+    /// Map the file `file` to `len` bytes with memory protection as provided by `perm`, and mapping flags provided by `flags`.
+    /// # Mapping flags
+    /// The trait `MapFlags` is used to allow user-defined configurations of `mmap()`, but the `Flags` enum should usually be used for this, or `()`, which behaves the same as `Flags::default()`.
     ///
     /// # Returns
     /// If `mmap()` fails, then the current `errno` is returned alongside the `file` that was passed in, otherwise, a new mapping is
@@ -69,7 +75,7 @@ impl<T: AsRawFd> MappedFile<T> {
     ///
     /// # Panics
     /// If `mmap()` succeeds, but returns an invalid address (e.g. 0)
-    pub fn try_new(file: T, len: usize, perm: Perm, flags: Flags) -> Result<Self, TryNewError<T>>
+    pub fn try_new(file: T, len: usize, perm: Perm, flags: impl flags::MapFlags) -> Result<Self, TryNewError<T>>
     {
 	#[inline(never)]
 	#[cold]
@@ -80,7 +86,7 @@ impl<T: AsRawFd> MappedFile<T> {
 	const NULL: *mut libc::c_void = ptr::null_mut();
         let fd = file.as_raw_fd();
         let slice = match unsafe {
-            mmap(ptr::null_mut(), len, perm.get_prot(), flags.get_flags(), fd, 0)
+            mmap(ptr::null_mut(), len, perm.get_prot(), flags.get_mmap_flags(), fd, 0)
         } {
             MAP_FAILED => return Err(TryNewError::wrap_last_error(file)),
             NULL => _panic_invalid_address(),
@@ -443,5 +449,21 @@ impl<T> ops::DerefMut for MappedFile<T>
         self.as_slice_mut()
     }
 }
+
+/// Used for anonymous mappings with `MappedFile`.
+///
+/// # Safety
+/// The `AsRawFd` impl of this structure always returns `-1`. It should only be used with `MappedFile`, as this is an invlalid file descriptor in all other contexts.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
+pub struct Anonymous;
+
+impl AsRawFd for Anonymous
+{
+    #[inline(always)] 
+    fn as_raw_fd(&self) -> RawFd {
+	-1
+    }
+}
+
 //TODO: Continue copying from `utf8encode` at the //TODO (cont.) line
 

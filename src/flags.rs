@@ -1,6 +1,6 @@
 //! All flags for controlling a `MappedFile<T>`.
+use super::*;
 use libc::c_int;
-
 
 /// Permissions for the mapped pages.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, Default)]
@@ -21,6 +21,82 @@ pub enum Flags
 #[default]
     Shared,
     Private,
+}
+
+impl Flags
+{
+    /// Add these flags to another `MapFlags` provider's mask.
+    ///
+    /// # Safety
+    /// The caller *should* ensure there are no conflicting flags present in the bitwise OR of `self` and `flags`'s respective masks; if there are, then `mmap()` may fail. This will not result in unexpected mapping behaviour, but will cause an error.
+    ///
+    /// However, the caller **must** ensure there are no *overlapping* bits in the resulting mask, as that may produce a valid but unexpected combined mask.
+    ///
+    /// # `hugetlb` support
+    /// For adding huge-page mapping flags to these, use `with_hugetlb()` instead.
+    #[inline] 
+    pub unsafe fn chain_with(self, flags: impl MapFlags) -> impl MapFlags
+    {
+	struct Chained<T: ?Sized>(Flags, T);
+
+	unsafe impl<T: ?Sized> MapFlags for Chained<T>
+	where T: MapFlags
+	{
+	    #[inline(always)] 
+	    fn get_mmap_flags(&self) -> c_int {
+		self.0.get_flags() | self.1.get_mmap_flags()
+	    }
+	}
+
+	Chained(self, flags)
+    }
+    /// Add huge-page info to the mapping flags for this `MappedFile<T>` instance.
+    ///
+    /// # Returns
+    /// An opaque type that combines the flags of `self` with those computed by `hugetlb`.
+    #[inline] 
+    pub const fn with_hugetlb(self, hugetlb: HugePage) -> impl MapFlags + Send + Sync + 'static
+    {
+	#[derive(Debug)]
+	struct HugeTLBFlags(Flags, HugePage);
+	unsafe impl MapFlags for HugeTLBFlags
+	{
+	    #[inline(always)]
+	    fn get_mmap_flags(&self) -> c_int {
+		self.0.get_flags() | self.1.compute_huge().map(MapHugeFlag::get_mask).unwrap_or(0)
+	    }
+	}
+
+	HugeTLBFlags(self, hugetlb)
+    }
+}
+
+/// Any type implementing this trait can be passed to `MappedFile<T>`'s `try_/new()` method to provide flags directly for `mmap()`.
+/// Usually, the enum `Flags` should be used for this, but for HUGETLB configurations, or used-defined `MAP_FIXED` usages, it can be used on other types.
+///
+/// This trait is also implemented on `()`, which will just return `Flags::default()`'s implementation of it.
+///
+/// # Safety
+/// This trait is marked `unsafe` as invalid memory mapping configurations can cause invalid or undefined behaviour that is unknown to `MappedFile<T>`.
+pub unsafe trait MapFlags
+{
+    fn get_mmap_flags(&self) -> c_int;
+}
+
+unsafe impl MapFlags for ()
+{
+    #[inline]
+    fn get_mmap_flags(&self) -> c_int {
+	Flags::default().get_flags()
+    }
+}
+
+unsafe impl MapFlags for Flags
+{
+    #[inline(always)]
+    fn get_mmap_flags(&self) -> c_int {
+	self.get_flags()
+    }
 }
 
 impl Flags

@@ -8,5 +8,4 @@ use super::*;
 #[repr(transparent)]
 pub struct MemoryFile(ManagedFD);
 
-mod hugetlb;
-//TODO: implement `memfd` (and its hugetlb interface, extracted to `hugetlb.rs`) from `utf8encode`.
+//TODO: implement `memfd` from `utf8encode`.
