@@ -5,6 +5,28 @@ use std::{
     fmt, error
 };
 
+macro_rules! opaque {
+    ($obj:expr => $msg:literal $(, $args:expr)*) => {
+	{
+            #[derive(Debug)]
+	    struct Opaque<'a, T: ?Sized + ::std::fmt::Debug>(::std::fmt::FormatArgs<'a>, T);
+	    impl<'a, T: ?Sized + ::std::fmt::Debug> ::std::fmt::Display for Opaque<T>
+	    {
+		#[inline] 
+		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+		{
+		    use ::std::fmt::Write;
+		    write!(f, "{}: {:?}", self.0, &self.1)
+		}
+	    }
+	    impl<'a, T: ?Sized + ::std::fmt::Debug> error::Error for Opaque<'a, T>{}
+
+	    Opaque(::std::format_args!($msg, $(, $args)*), $obj)
+	}
+    };
+}
+pub(crate) use opaque;
+
 /// Construct an ad-hoc error wrapping the last OS error.
 macro_rules! os_error {
     ($fmt:literal $(, $args:expr)*) => {

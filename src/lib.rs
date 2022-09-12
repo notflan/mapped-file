@@ -1,4 +1,6 @@
 
+#[macro_use] extern crate lazy_static;
+
 use libc::{
     mmap,
     MAP_FAILED,
@@ -38,7 +40,10 @@ mod flags;
 pub use flags::*;
 
 pub mod err;
-use err::os_error;
+use err::{
+    os_error,
+    opaque,
+};
 
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
