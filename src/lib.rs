@@ -122,7 +122,7 @@ impl<T: AsRawFd> MappedFile<T> {
     /// # Panics
     /// If `mmap()` succeeds, but returns an invalid address (e.g. 0)
     #[inline] 
-    pub fn new(file: T, len: usize, perm: Perm, flags: Flags) -> io::Result<Self>
+    pub fn new(file: T, len: usize, perm: Perm, flags: impl MapFlags) -> io::Result<Self>
     {
 	Self::try_new(file, len, perm, flags).map_err(Into::into)
     }
@@ -177,8 +177,6 @@ impl<T: AsRawFd> MappedFile<T> {
 }
 
 impl<T> MappedFile<T> {
-    
-    
     #[inline(always)]
     fn raw_parts(&self) -> (*mut u8, usize)
     {
@@ -298,7 +296,9 @@ impl<T> MappedFile<T> {
     }
 }
 
-/// Error returned when mapping operation fails
+/// Error returned when mapping operation fails.
+///
+/// Also returns the value passed in.
 pub struct TryNewError<T: ?Sized>
 {
     error: Box<io::Error>,

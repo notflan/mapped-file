@@ -130,7 +130,6 @@ pub enum HugePage {
     /// The largest huge-page size on the system 
     Largest,
     /// Use a callback function to select the huge-page size (*in kB*) from an *ordered* (lowest to highest) enumeration of all available on the system.
-    //TODO: Remember to order the HUGEPAGE_LOCATION parsing results before passing them to this!
     Selected(for<'r> fn (&'r [usize]) -> Option<&'r usize>),
 }
 
