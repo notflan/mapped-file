@@ -1,6 +1,6 @@
 //! Wrapping `errno` error types
 use super::*;
-use std::ffi::c_int;
+use std::os::raw::c_int;
 use std::{
     fmt, error
 };
