@@ -1,4 +1,4 @@
-# `MemoryFile<T>`: Map over any file object
+# `MemoryFile<T>`: Wrap memory mappings over any file-like object
 
 A safe and ergonomic `mmap()` wrapper for arbitrary file-descriptor handles.
 

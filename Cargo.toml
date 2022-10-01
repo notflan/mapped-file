@@ -4,6 +4,7 @@ description = "Construct a memory mapping over any file object"
 keywords = ["unix", "mmap", "generic", "file", "fd"]
 version = "0.0.1"
 edition = "2021"
+repository="https://github.com/notflan/mapped-file"
 license="MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
