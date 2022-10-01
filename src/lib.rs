@@ -26,6 +26,7 @@ mod ffi;
 use ffi::c_try;
 
 pub mod hugetlb;
+#[cfg(feature="file")]
 pub mod file;
 
 use hugetlb::{
