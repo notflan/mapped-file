@@ -25,9 +25,15 @@ use std::{
 mod ffi;
 use ffi::c_try;
 
+
 pub mod hugetlb;
 #[cfg(feature="file")]
 pub mod file;
+
+pub mod ring; //TODO
+use ring::buffer;
+
+mod ext; use ext::*;
 
 use hugetlb::{
     HugePage,
@@ -69,6 +75,12 @@ pub struct MappedFile<T>
     file: T,
     map: MappedSlice,
 }
+#[inline(never)]
+#[cold]
+fn _panic_invalid_address() -> !
+{
+    panic!("Invalid/unsupported address returned from mmap()")
+}
 
 impl<T: AsRawFd> MappedFile<T> {
     /// Map the file `file` to `len` bytes with memory protection as provided by `perm`, and mapping flags provided by `flags`.
@@ -83,12 +95,7 @@ impl<T: AsRawFd> MappedFile<T> {
     /// If `mmap()` succeeds, but returns an invalid address (e.g. 0)
     pub fn try_new(file: T, len: usize, perm: Perm, flags: impl flags::MapFlags) -> Result<Self, TryNewError<T>>
     {
-	#[inline(never)]
-	#[cold]
-        fn _panic_invalid_address() -> !
-        {
-            panic!("Invalid/unsupported address returned from mmap()")
-        }
+	
 	const NULL: *mut libc::c_void = ptr::null_mut();
         let fd = file.as_raw_fd();
         let slice = match unsafe {
@@ -110,6 +117,76 @@ impl<T: AsRawFd> MappedFile<T> {
             file,
             map: MappedSlice(slice)
         })
+    }
+
+    /// Returns a dual mapping `(tx, rx)`, into the same file.
+    ///
+    /// # Note
+    /// `len` **must** be a multiple of the used page size (or hugepage size, if `flags` is set to use one) for this to work.
+    pub fn try_new_buffer<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, rings: impl Into<Option<std::num::NonZeroUsize>>, allow_unsafe_writes: bool, flags: impl flags::MapFlags) -> Result<(MappedFile<B>, MappedFile<B>), TryNewError<T>>
+    {
+	const NULL: *mut libc::c_void = ptr::null_mut();
+	use std::{
+	    //rc::Rc,
+	    cell::RefCell,
+	};
+
+	let mut defer_set = {
+	    let mut defer_set: Vec<(*mut u8, usize)> = Vec::new();
+	    defer!(ref defer_set => |set: Vec<(*mut u8, usize)>| {
+		for (ptr, len) in set {
+		    unsafe {
+			libc::munmap(ptr as *mut _, len);
+		    }
+		}
+	    });
+	    defer_set
+	};
+	
+	macro_rules! try_map {
+	    ($($tt:tt)*) => {
+		match unsafe {
+		    mmap($($tt)*)
+		} {
+		    MAP_FAILED => return Err(TryNewError::wrap_last_error(file)),
+		    NULL => _panic_invalid_address(),
+		    ptr => unsafe {
+			defer_set.push((ptr as *mut u8, len));
+			
+			UniqueSlice {
+			    mem: NonNull::new_unchecked(ptr as *mut u8),
+			    end: match NonNull::new((ptr as *mut u8).add(len)) {
+				Some(n) => n,
+				_ => _panic_invalid_address(),
+			    }
+			}
+		    }
+		}
+	    };
+	}
+	let (prot_r, prot_w) = if allow_unsafe_writes {
+	    let p = Perm::ReadWrite.get_prot();
+	    (p, p)
+	} else {
+	    (Perm::Writeonly.get_prot(), Perm::Readonly.get_prot())
+	};
+	match rings.into() {
+	    None => {
+		// No rings, just create two mappings at same addr.
+		let flags = flags.get_mmap_flags();
+		let tm = try_map!(NULL, len, prot_w, flags, file.as_raw_fd(), 0); 
+		let wm = try_map!(tm.mem.as_ptr() as *mut _, len, prot_r, flags | libc::MAP_FIXED, file.as_raw_fd(), 0);
+		//TODO... How to create the first `A?rc` over `file`?
+	    },
+	    Some(pages) => {
+		// Create anon mapping
+		try_map!(NULL, len, libc::PROT_NONE, flags.get_mmap_flags() | libc::MAP_ANONYMOUS, file.as_raw_fd(), 0);
+	    }
+	    
+	}
+
+	// Must happen at the end, so that maps dont get defer free'd
+	defer_set.clear();
     }
     
     /// Map the file `file` to `len` bytes with memory protection as provided by `perm`, and
@@ -140,8 +217,8 @@ impl<T: AsRawFd> MappedFile<T> {
         match unsafe {
 	    msync(self.map.0.as_mut_ptr() as *mut _, self.map.0.len(), flush.get_ms())
 	} {
-            0 => Ok(()),
-            _ => Err(io::Error::last_os_error())
+	    0 => Ok(()),
+	    _ => Err(io::Error::last_os_error())
         }
     }
 
@@ -188,14 +265,14 @@ impl<T> MappedFile<T> {
     pub fn advise(&mut self, adv: Advice, needed: Option<bool>) -> io::Result<()>
     {
         use libc::{
-            madvise,
-            MADV_WILLNEED,
-            MADV_DONTNEED
+	    madvise,
+	    MADV_WILLNEED,
+	    MADV_DONTNEED
         };
         let (addr, len) = self.raw_parts();
         match unsafe { madvise(addr as *mut _, len, adv.get_madv() | needed.map(|n| n.then(|| MADV_WILLNEED).unwrap_or(MADV_DONTNEED)).unwrap_or(0)) } {
-            0 => Ok(()),
-            _ => Err(io::Error::last_os_error())
+	    0 => Ok(()),
+	    _ => Err(io::Error::last_os_error())
         }
     }
 
@@ -207,7 +284,7 @@ impl<T> MappedFile<T> {
     pub fn try_with_advice(mut self, adv: Advice, needed: Option<bool>) -> Result<Self, TryNewError<Self>>
     {
         match self.advise(adv, needed) {
-            Ok(_) => Ok(self),
+	    Ok(_) => Ok(self),
 	    Err(error) => Err(TryNewError {
 		error: Box::new(error),
 		value: self,
@@ -237,8 +314,8 @@ impl<T> MappedFile<T> {
     {
         let MappedFile{ file, map } = self;
         (MappedFile {
-            file: other,
-            map
+	    file: other,
+	    map
         }, file)
     }
 
