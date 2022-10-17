@@ -124,6 +124,8 @@ impl<T: AsRawFd> MappedFile<T> {
     /// This essentially creates s "sender" `tx`, and "receiver" `rx` mapping over the same data.
     /// The sender is *write only*, and the receiver is *read only*.
     ///
+    /// When **both** of the mappings have been uunmapped (when each `MappedFile<T>` has been dropped,) the inner value `file` is then dropped.
+    ///
     /// # Sharing modes
     /// `B` is used for the counter over the file handle `T`. Currently it can be
     /// * `buffer::Shared` - A `Send`able mapping, use this for concurrent processing.
@@ -131,7 +133,7 @@ impl<T: AsRawFd> MappedFile<T> {
     ///
     /// # Note
     /// `len` **must** be a multiple of the used page size (or hugepage size, if `flags` is set to use one) for this to work.
-    pub fn try_new_buffer<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, flags: impl flags::MapFlags) -> Result<(MappedFile<B>, MappedFile<B>), TryNewError<T>>
+    pub fn shared<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, flags: impl flags::MapFlags) -> Result<(MappedFile<B>, MappedFile<B>), TryNewError<T>>
     {
 	Self::try_new_buffer_raw::<B>(file, len, None, false, flags)
     }
