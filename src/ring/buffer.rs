@@ -171,3 +171,47 @@ impl<T: ?Sized> Private<T>
 	&self.0
     }
 }
+
+//TODO: use `dup()` to turn (MappedFile<B>, MappedFile<B>) -> (MappedFile<impl FromRawFd>, MappedFile<impl FromRawFd>)
+
+pub trait BufferExt<T>
+{
+    fn detach(txrx: Self) -> (MappedFile<T>, MappedFile<T>);
+}
+
+impl<B, T> BufferExt<T> for (MappedFile<B>, MappedFile<B>)
+where B: TwoBufferProvider<T> + AsRawFd,
+T: FromRawFd,
+{
+    /// Detach a mapped dual buffer 2-tuple into regular mapped inner types.
+    #[inline] 
+    fn detach((itx, irx): Self) -> (MappedFile<T>, MappedFile<T>) {
+	#[cold]
+	#[inline(never)]
+	fn _panic_bad_dup(fd: RawFd) -> !
+	{
+	    panic!("Failed to dup({fd}): {}", io::Error::last_os_error())
+	}
+	let tx = itx.file.as_raw_fd();
+	let rx = irx.file.as_raw_fd();
+	
+	let (f0, f1) = unsafe {
+	    let fd1 = libc::dup(tx);
+	    if fd1 < 0 {
+		_panic_bad_dup(tx);
+	    }
+	    let fd2 = libc::dup(rx);
+	    if fd2 < 0 {
+		_panic_bad_dup(rx);
+	    }
+	    (T::from_raw_fd(fd1), T::from_raw_fd(fd2))
+	};
+	(MappedFile {
+	    map: itx.map,
+	    file: f0,
+	}, MappedFile {
+	    map: irx.map,
+	    file: f1
+	})
+    }
+}

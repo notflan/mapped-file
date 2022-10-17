@@ -27,7 +27,7 @@ use ffi::c_try;
 
 
 pub mod hugetlb;
-#[cfg(feature="file")]
+//#[cfg(feature="file")]
 pub mod file;
 
 pub mod ring; //TODO
@@ -135,6 +135,7 @@ impl<T: AsRawFd> MappedFile<T> {
     {
 	Self::try_new_buffer_raw::<B>(file, len, None, false, flags)
     }
+    //TODO: XXX: Test this when we have implemented memfd.
     #[inline] 
     pub(crate) fn try_new_buffer_raw<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, rings: impl Into<Option<std::num::NonZeroUsize>>, allow_unsafe_writes: bool, flags: impl flags::MapFlags) -> Result<(MappedFile<B>, MappedFile<B>), TryNewError<T>>
     {
@@ -228,11 +229,11 @@ impl<T: AsRawFd> MappedFile<T> {
 		let mut root = try_map!(NULL, full_len, libc::PROT_NONE, libc::MAP_PRIVATE | libc::MAP_ANONYMOUS, -1, 0);
 		let pivots = {
 		    let rawfd = file.as_raw_fd();
-		    let pivots: io::Result<Vec<_>> = std::iter::successors(unsafe { Some(root.0.as_mut_ptr().add(full_len)) }, |&x| unsafe { Some(x.sub(len * 2)) }) // Map in reverse, from end of `root`, and overwrite the `root` mapping last.
+		    let pivots: io::Result<Vec<_>> = std::iter::successors(unsafe { Some(root.0.as_mut_ptr().add(full_len - (len * 2))) }, |&x| unsafe { Some(x.sub(len * 2)) }) // Map in reverse, from end of `root`, and overwrite the `root` mapping last.
 			.take(pages.get())
 			.map(|base| {
-			    let tm = try_map_or!(base as *mut _, len, prot_w, flags | libc::MAP_FIXED, rawfd, 0)?;
 			    let rm = try_map_or!(base.add(len) as *mut _, len, prot_r, flags | libc::MAP_FIXED,rawfd, 0 )?;
+			    let tm = try_map_or!(base as *mut _, len, prot_w, flags | libc::MAP_FIXED, rawfd, 0)?;
 
 			    Ok((tm, rm))
 			})
