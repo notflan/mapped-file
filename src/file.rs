@@ -8,6 +8,9 @@ pub const STDOUT_FILENO: RawFd = libc::STDOUT_FILENO;
 /// Raw file-descriptor for standard error
 pub const STDERR_FILENO: RawFd = libc::STDERR_FILENO;
 
+mod raw;
+use raw::*;
+
 mod managed;
 mod unmanaged;
 

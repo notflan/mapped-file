@@ -82,6 +82,22 @@ fn _panic_invalid_address() -> !
     panic!("Invalid/unsupported address returned from mmap()")
 }
 
+/// Get the current system page size
+pub fn get_page_size() -> usize
+{
+    use libc::c_int;
+    extern "C" {
+	fn getpagesize() -> c_int;
+    }
+    lazy_static! {
+	static ref PAGESZ: c_int = unsafe {
+	    getpagesize()
+	};
+    }
+    let v: c_int = *PAGESZ;
+    v as usize
+}
+
 impl<T: AsRawFd> MappedFile<T> {
     /// Map the file `file` to `len` bytes with memory protection as provided by `perm`, and mapping flags provided by `flags`.
     /// # Mapping flags
@@ -119,6 +135,8 @@ impl<T: AsRawFd> MappedFile<T> {
         })
     }
 
+    
+
     /// Returns a dual mapping `(tx, rx)`, into the same file.
     ///
     /// This essentially creates s "sender" `tx`, and "receiver" `rx` mapping over the same data.
@@ -132,8 +150,37 @@ impl<T: AsRawFd> MappedFile<T> {
     /// * `buffer::Private` - A `!Send` mapping, use this for when both returned maps are only used on the same thread that this function was called from.
     ///
     /// # Note
-    /// `len` **must** be a multiple of the used page size (or hugepage size, if `flags` is set to use one) for this to work.
-    pub fn shared<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, flags: impl flags::MapFlags) -> Result<(MappedFile<B>, MappedFile<B>), TryNewError<T>>
+    /// `len` **must** be a multiple of the used page size (see `get_page_size()`) (or hugepage size, if `flags` is set to use one) for this to work.
+    ///
+    /// # Panics
+    /// If the initial mapping fails, the file descriptor cannot be mapped, `len` was not a multiple of the correct page size, or if the fixed mappings fail. (see `try_shared()`.)
+    pub fn shared<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, flags: impl flags::MapFlags) -> (MappedFile<B>, MappedFile<B>)
+    {
+	#[cold]
+	#[inline(never)]
+	fn _panic_failed_with(error: Box<io::Error>) -> !
+	{
+	    Err(error).expect("Failed to create shared mapping")
+	}
+	Self::try_shared(file, len, flags).unwrap_or_else(|e| {
+	    _panic_failed_with(e.error)
+	})
+    }
+    /// Returns a dual mapping `(tx, rx)`, into the same file.
+    ///
+    /// This essentially creates s "sender" `tx`, and "receiver" `rx` mapping over the same data.
+    /// The sender is *write only*, and the receiver is *read only*.
+    ///
+    /// When **both** of the mappings have been uunmapped (when each `MappedFile<T>` has been dropped,) the inner value `file` is then dropped.
+    ///
+    /// # Sharing modes
+    /// `B` is used for the counter over the file handle `T`. Currently it can be
+    /// * `buffer::Shared` - A `Send`able mapping, use this for concurrent processing.
+    /// * `buffer::Private` - A `!Send` mapping, use this for when both returned maps are only used on the same thread that this function was called from.
+    ///
+    /// # Note
+    /// `len` **must** be a multiple of the used page size (see `get_page_size()`) (or hugepage size, if `flags` is set to use one) for this to work.
+    pub fn try_shared<B: buffer::TwoBufferProvider<T>>(file: T, len: usize, flags: impl flags::MapFlags) -> Result<(MappedFile<B>, MappedFile<B>), TryNewError<T>>
     {
 	Self::try_new_buffer_raw::<B>(file, len, None, false, flags)
     }

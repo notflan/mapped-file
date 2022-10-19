@@ -11,6 +11,7 @@ macro_rules! c_try {
 		panic!("C call failed (invalid return {}): {}", $invalid, args)
             }
 
+	    #[allow(unused_unsafe)]
 	    let res = unsafe { $call };
 	    if res == $invalid {
 		_panic_bad_c_call(format_args!($fmt $(, $args)*))
@@ -26,6 +27,7 @@ macro_rules! c_try {
             {
 		panic!("C call failed (invalid return {}): {}", invalid, args)
             }
+	    #[allow(unused_unsafe)]
 	    let res = unsafe { $call };
 	    if $func(res) {
 		_panic_bad_c_call(res, format_args!($fmt $(, $args)*));
@@ -35,6 +37,7 @@ macro_rules! c_try {
     };
     (? $call:expr => if $func:expr; $fmt:literal $(, $args:expr)*) => {
 	{
+	    #[allow(unused_unsafe)]
 	    let res = unsafe { $call };
 	    if $func(res) {
 		Err(FFIError::from_last_error(res, format_args!($fmt $(, $args)*)))
@@ -45,6 +48,7 @@ macro_rules! c_try {
     };
     (? $call:expr => $invalid:literal; $fmt:literal $(, $args:expr)*) => {
 	{
+	    #[allow(unused_unsafe)]
 	    let res = unsafe { $call };
 	    if res == $invalid {
 		Err(FFIError::from_last_error($invalid, format_args!($fmt $(, $args)*)))
