@@ -6,6 +6,7 @@ use std::{
     num::NonZeroUsize,
     fs,
     path::{Path, PathBuf},
+    fmt, error,
 };
 use libc::{
     c_int,
@@ -19,6 +20,32 @@ pub const HUGEPAGE_LOCATION: &'static str = "/sys/kernel/mm/hugepages/";
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Copy)]
 #[repr(transparent)]
 pub struct MapHugeFlag(c_int);
+
+/// Error for when `HugePage::compute_huge()` fails.
+#[derive(Debug)]
+pub struct HugePageCalcErr(());
+
+impl TryFrom<HugePage> for MapHugeFlag
+{
+    type Error = HugePageCalcErr;
+
+    #[inline] 
+    fn try_from(from: HugePage) -> Result<Self, Self::Error>
+    {
+	from.compute_huge().ok_or(HugePageCalcErr(()))
+    }
+}
+
+
+impl error::Error for HugePageCalcErr{}
+impl fmt::Display for HugePageCalcErr
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    {
+	f.write_str("Invalid huge-page specification")
+    }
+}
+
 
 impl Default for MapHugeFlag
 {

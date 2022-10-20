@@ -24,6 +24,38 @@ impl Clone for ManagedFD {
     }
 }
 
+impl ManagedFD
+{
+    #[inline] 
+    pub const unsafe fn take_unchecked(fd: RawFd) -> Self
+    {
+	Self(UnmanagedFD::new_unchecked(fd))
+    }
+
+    #[inline] 
+    pub const fn take_raw(fd: RawFd) -> Self
+    {
+	assert!(fd>=0, "Invalid file descriptor");
+	unsafe {
+	    Self::take_unchecked(fd)
+	}
+    }
+
+    #[inline] 
+    pub const fn take(fd: UnmanagedFD) -> Self
+    {
+	Self(fd)
+    }
+
+    #[inline]
+    pub fn detach(self) -> UnmanagedFD
+    {
+	let v = self.0.clone();
+	std::mem::forget(self);
+	v
+    }
+}
+
 impl ops::Drop for ManagedFD
 {
     fn drop(&mut self) {

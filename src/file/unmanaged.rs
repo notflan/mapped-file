@@ -14,6 +14,15 @@ impl UnmanagedFD {
 	Self(alias.as_raw_fd().into())
     }
 
+    #[inline]
+    pub const fn new_raw(raw: RawFd) -> Option<Self>
+    {
+	match NonNegativeI32::new(raw) {
+	    Some(x) => Some(Self(x)),
+	    None => None,
+	}
+    }
+
     #[inline] 
     pub(super) const fn new_or_panic(raw: RawFd) -> Self
     {
