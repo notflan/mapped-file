@@ -140,6 +140,12 @@ impl From<MapHugeFlag> for c_int
     }
 }
 
+/// Provides an arbitrary huge-page size and mapping flag for that size.
+///
+/// Can store or create a `MAP_HUGE_*` flag for use with `mmap()`, (`MappedFile`) or `memfd_create()` (`file::MemoryFile::with_hugetlb()`)
+///
+/// # Usage
+/// Main usage is for generating a `MapHugeFlag` via `compute_huge()`. This function may fail (rarely), so a `TryInto` impl exists for `MapHugeFlag` as well.
 #[derive(Default, Clone, Copy)]
 pub enum HugePage {
     /// A staticly presented `MAP_HUGE_*` flag. See `MapHugeFlag` for details.

@@ -167,7 +167,7 @@ impl NamedMemoryFile
 	Ok(Self(name, MemoryFile(managed)))
     }
 
-     pub fn with_hugetlb(name: impl AsRef<str>, hugetlb: MapHugeFlag) -> io::Result<Self>
+    pub fn with_hugetlb(name: impl AsRef<str>, hugetlb: MapHugeFlag) -> io::Result<Self>
     {
 	let name: Box<CStr> = alloc_cstring(name.as_ref()).into();
 	let memfd = MemoryFile(unsafe { create_raw(&name, DEFAULT_FLAGS | (hugetlb.get_mask() as c_uint)) }
