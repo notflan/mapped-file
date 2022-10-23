@@ -57,6 +57,9 @@ use err::{
 #[repr(transparent)]
 struct MappedSlice(UniqueSlice<u8>);
 
+unsafe impl Send for MappedSlice{}
+unsafe impl Sync for MappedSlice{}
+
 impl ops::Drop for MappedSlice
 {
     #[inline]
@@ -628,6 +631,24 @@ impl<T> BorrowMut<[u8]> for MappedFile<T>
     fn borrow_mut(&mut self) -> &mut [u8]
     {
         self.as_slice_mut()
+    }
+}
+
+impl<T> AsRef<[u8]> for MappedFile<T>
+{
+    #[inline]
+    fn as_ref(&self) -> &[u8]
+    {
+	self.as_slice()
+    }
+}
+
+impl<T> AsMut<[u8]> for MappedFile<T>
+{
+    #[inline]
+    fn as_mut(&mut self) -> &mut [u8]
+    {
+	self.as_slice_mut()
     }
 }
 
