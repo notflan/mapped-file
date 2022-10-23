@@ -79,4 +79,12 @@ impl AsRawFd for UnmanagedFD
     }
 }
 
+impl From<UnmanagedFD> for ManagedFD {
+    #[inline]
+    fn from(from: UnmanagedFD) -> Self {
+	Self::take(unsafe { UnmanagedFD::new_unchecked( c_try!(libc::dup(from.get()) => if |x| x < 0; "dup(): failed to duplicate file descriptor {}", from.get()) ) })
+
+    }
+}
+
 //TODO: implement a full version of the temporary struct `UnmanagedFD` from `utf8encode`

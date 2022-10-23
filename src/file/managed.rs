@@ -24,12 +24,26 @@ impl Clone for ManagedFD {
     }
 }
 
+//TODO: io::Read/io::Write impls for ManagedFD
+
 impl ManagedFD
 {
     #[inline] 
     pub const unsafe fn take_unchecked(fd: RawFd) -> Self
     {
 	Self(UnmanagedFD::new_unchecked(fd))
+    }
+
+    /// Duplicate a file-descriptor, aliasing the open resource for the lifetime of the returned `ManagedFD`..
+    #[inline]
+    pub fn alias(file: &(impl AsRawFd + ?Sized)) -> io::Result<Self>
+    {
+	let r = unsafe { libc::dup(file.as_raw_fd()) };
+	if let Some(r) = UnmanagedFD::new_raw(r) {
+	    Ok(Self(r))
+	} else {
+	    Err(io::Error::last_os_error())
+	}
     }
 
     #[inline] 
@@ -101,6 +115,3 @@ impl From<ManagedFD> for std::fs::File
 	}
     }
 }
-
-
-//TODO: implement the rest of ManagedFD from `memfd` module in `utf8encode`
