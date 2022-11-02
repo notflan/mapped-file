@@ -117,3 +117,93 @@ impl From<i32> for NonNegativeI32
     }
 }
 
+/// Implements `io::Read` and `io::Write` for a type that implements an accessor for a raw file-descriptor.
+///
+/// Usage:
+/// ```no_compile
+/// struct HasFd(UnmanagedFD);
+/// impl_io_for_fd(HasFd => .0);
+/// ```
+macro_rules! impl_io_for_fd {
+    ($type:ty => .$($fd_path:tt)+) => {
+	const _:() = {
+	    use std::io;
+	    #[inline(always)]
+	    fn check_error() -> bool
+	    {
+		use libc::{
+		    EINTR,
+		    __errno_location,
+		};
+		match unsafe { *__errno_location() } {
+		    EINTR => true,
+		    _ => false,
+		}
+	    }
+	    
+	    impl io::Write for $type
+	    {
+		fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		    match unsafe { libc::write(self.$($fd_path)+, buf.as_ptr()  as *const _, buf.len()) } {
+			-1 => Err(io::Error::last_os_error()),
+			n => Ok(n as usize)
+		    }
+		}
+		fn write_all(&mut self, mut buf: &[u8]) -> io::Result<()> {
+		    
+		    loop {
+			buf = match buf {
+			    [] => break Ok(()),
+			    buf => {
+				match unsafe{ libc::write(self.$($fd_path)+, buf.as_ptr() as *const _, buf.len()) } {
+				    -1 if check_error() => {
+					return Err(io::Error::last_os_error());
+				    },
+				    -1 => continue,
+				    0 => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "write returned 0")),
+				    n => &buf[(n as usize)..],
+				}
+			    },
+			};
+		    }
+		}
+		
+		#[inline] 
+		fn flush(&mut self) -> io::Result<()> {
+		    Ok(())
+		}
+	    }
+
+	    impl io::Read for $type
+	    {
+		fn read(&mut self, buf: &mut [u8]) -> io::Result<usize>
+		{
+		    match unsafe { libc::read(self.$($fd_path)+, buf.as_mut_ptr() as *mut _, buf.len()) } {
+			-1 => Err(io::Error::last_os_error()),
+			n => Ok(n as usize),
+		    }
+		}
+		fn read_exact(&mut self, mut buf: &mut [u8]) -> io::Result<()>
+		{
+		    loop {
+			let n = match &mut buf {
+			    [] => break Ok(()),
+			    buf => {
+				match unsafe { libc::read(self.$($fd_path)+, (**buf).as_mut_ptr() as *mut libc::c_void, buf.len()) } {
+				    -1 if check_error() => {
+					return Err(io::Error::last_os_error());
+				    },
+				    -1 => continue,
+				    0 => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "read returned 0")),
+				    n => n as usize,
+				}
+			    }
+			};
+			buf = &mut buf[n..];
+		    }
+		}
+	    }
+	};
+    };
+}
+pub(super) use impl_io_for_fd;

@@ -79,7 +79,7 @@ impl ops::Deref for NamedMemoryFile
     }
 }
 
-//TODO: impl `MemoryFile` (memfd_create() fd wrapper)
+//impl `MemoryFile` (memfd_create() fd wrapper)
 impl MemoryFile
 {
     /// Create a new, empty, memory file with no name and no flags.
@@ -234,4 +234,4 @@ impl From<MemoryFile> for std::fs::File
     }
 }
 
-//TODO: io::Read/io::Write impls for MemoryFile
+raw::impl_io_for_fd!(MemoryFile => .0.as_raw_fd());

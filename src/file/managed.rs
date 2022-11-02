@@ -24,8 +24,6 @@ impl Clone for ManagedFD {
     }
 }
 
-//TODO: io::Read/io::Write impls for ManagedFD
-
 impl ManagedFD
 {
     #[inline] 
@@ -115,3 +113,5 @@ impl From<ManagedFD> for std::fs::File
 	}
     }
 }
+
+raw::impl_io_for_fd!(ManagedFD => .0.get());
