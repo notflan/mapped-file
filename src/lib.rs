@@ -101,6 +101,36 @@ pub fn get_page_size() -> usize
     v as usize
 }
 
+impl<T> MappedFile<T> {
+    /// A reference to the mapped backing file
+    #[inline]
+    pub fn inner(&self) -> &T
+    {
+	&self.file
+    }
+    /// A mutable reference to the mapped backing file
+    ///
+    /// # Note
+    /// Behaviour of faulted or unfaulted pages is not specified if the backing file is modified another way. Likewise, if the backing file is read from another way, the data mapped is not guaranteed to have been synced unless a `flush()` has completed. Be careful with this.
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut T
+    {
+	&mut self.file
+    }
+
+    /// Unmap the memory contained in `T` and return it.
+    ///
+    /// # Warning
+    /// If the map is shared, or refers to a persistent file on disk, you should call `flush()`
+    /// first or use `into_inner_synced()`
+    #[inline] 
+    pub fn into_inner(self) -> T
+    {
+        drop(self.map);
+        self.file
+    }
+}
+
 impl<T: AsRawFd> MappedFile<T> {
     /// Map the file `file` to `len` bytes with memory protection as provided by `perm`, and mapping flags provided by `flags`.
     /// # Mapping flags
@@ -427,18 +457,6 @@ impl<T> MappedFile<T> {
 	    file: other,
 	    map
         }, file)
-    }
-
-    /// Unmap the memory contained in `T` and return it.
-    ///
-    /// # Warning
-    /// If the map is shared, or refers to a persistent file on disk, you should call `flush()`
-    /// first or use `into_inner_synced()`
-    #[inline] 
-    pub fn into_inner(self) -> T
-    {
-        drop(self.map);
-        self.file
     }
 
     /// The size of the mapped memory

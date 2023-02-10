@@ -2,7 +2,7 @@
 name = "mapped-file"
 description = "Construct a memory mapping over any file object"
 keywords = ["unix", "mmap", "generic", "file", "fd"]
-version = "0.0.6"
+version = "0.0.7"
 edition = "2021"
 repository="https://github.com/notflan/mapped-file"
 license="MIT"
