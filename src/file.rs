@@ -39,4 +39,13 @@ mod tests
 	test_fileno::<STDOUT_FILENO>("STDOUT_FILENO", std::io::stdout().as_raw_fd());
 	test_fileno::<STDERR_FILENO>("STDERR_FILENO", std::io::stderr().as_raw_fd());
     }
+
+    #[test]
+    fn test_readwrite()
+    {
+	let mut input = ManagedFD::from(memory::MemoryFile::new().unwrap());
+	let mut output = memory::MemoryFile::new().unwrap();
+	assert_eq!(std::io::copy(&mut input, &mut output).unwrap(), 0, "Bad read");
+
+    }
 }
