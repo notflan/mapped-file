@@ -21,6 +21,74 @@ pub use self::{
 
 pub mod memory;
 
+#[derive(Debug)]
+enum MaybeMappedInner<T>
+{
+    Raw(T),
+    Copied(memory::MemoryFile),
+}
+
+impl<T: AsRawFd + io::Read> MaybeMappedInner<T>
+{
+    pub fn from_stat(mut file: T) -> io::Result<(Self, u64)>
+    {
+	use libc::fstat;
+	let fd = file.as_raw_fd();
+	let sz = unsafe {
+	    let mut stat = std::mem::MaybeUninit::uninit();
+	    if fstat(fd, stat.as_mut_ptr()) != 0 {
+		let mut mem = memory::MemoryFile::new()?;
+		let count = std::io::copy(&mut file, &mut mem)?;
+		return Ok((Self::Copied(mem), count));
+	    }
+	    stat.assume_init().st_size & i64::MAX
+	} as u64;
+	Ok((Self::Raw(file), sz))
+    }
+}
+
+impl<T: IntoRawFd> MaybeMappedInner<T>
+{
+    #[inline] 
+    pub unsafe fn into_file(self) -> std::fs::File
+    {
+	let fd = match self {
+	    Self::Raw(r) => r.into_raw_fd(),
+	    Self::Copied(c) => c.into_raw_fd(),
+	};
+	
+	FromRawFd::from_raw_fd(fd)
+    }
+}
+
+impl<T> AsRawFd for MaybeMappedInner<T>
+where T: AsRawFd
+{
+    #[inline] 
+    fn as_raw_fd(&self) -> RawFd {
+	match self {
+	    Self::Copied(c) => c.as_raw_fd(),
+	    Self::Raw(r) => r.as_raw_fd(),
+	}
+    }
+}
+
+/// Attempt to map a file, if it fails, copy that file into memory and map that.
+///
+/// # Returns
+/// A map over the file, or a map over an in-memory copy of the file.
+pub fn try_map_or_cloned<F: io::Read + AsRawFd + IntoRawFd>(file: F, perm: Perm, flags: impl MapFlags) -> io::Result<MappedFile<std::fs::File>>
+{
+    let (len, file) = {
+	let (file, size) = MaybeMappedInner::from_stat(file)?;
+	let size = usize::try_from(size).map_err(|_| io::Error::new(io::ErrorKind::Unsupported, "File size exceeds pointer word width"))?;
+	(size, unsafe {
+	    file.into_file() 
+	})
+    };
+    MappedFile::new(file, len, perm, flags)
+}
+
 #[cfg(test)]
 mod tests
 {
